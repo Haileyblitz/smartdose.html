@@ -1,1 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Dose — AI Medication Reminder</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --teal: #1adfb0;
+    --teal-dim: #0fa882;
+    --dark: #0a1512;
+    --dark2: #0f1e1a;
+    --dark3: #142820;
+    --card: rgba(255,255,255,0.04);
+    --border: rgba(26,223,176,0.18);
+    --text: #e8f5f1;
+    --muted: #7aada0;
+  }
 
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    overflow-x: hidden;
+  }
+
+  /* ─── NOISE OVERLAY ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    padding: 20px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    backdrop-filter: blur(20px);
+    background: rgba(10,21,18,0.7);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--teal);
+    letter-spacing: -0.02em;
+  }
+
+  .nav-logo span { color: var(--text); }
+
+  nav ul {
+    list-style: none;
+    display: flex;
+    gap: 40px;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  nav a:hover { color: var(--teal); }
+
+  /* ─── HERO ─── */
+  #hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding: 120px 60px 80px;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 70% 50%, rgba(26,223,176,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 80% at 10% 80%, rgba(0,180,130,0.08) 0%, transparent 55%),
+      radial-gradient(ellipse 60% 40% at 90% 10%, rgba(10,150,100,0.06) 0%, transparent 50%);
+    z-index: 0;
+  }
+
+  /* animated rings */
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(26,223,176,0.1);
+    animation: pulse 6s ease-in-out infinite;
+  }
+  .ring:nth-child(2) { width: 400px; height: 400px; right: 10%; top: 15%; animation-delay: 0s; }
+  .ring:nth-child(3) { width: 600px; height: 600px; right: 5%;  top: -5%; animation-delay: 1.5s; }
+  .ring:nth-child(4) { width: 800px; height: 800px; right: -5%; top: -15%; animation-delay: 3s; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50%       { opacity: 0.8; transform: scale(1.03); }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 700px;
+  }
+
+  .hero-tag {
+    display: inline-block;
+    background: rgba(26,223,176,0.12);
+    border: 1px solid var(--border);
+    color: var(--teal);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 16px;
+    border-radius: 100px;
+    margin-bottom: 28px;
+    animation: fadeUp 0.8s ease both;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(3rem, 7vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 24px;
+    animation: fadeUp 0.8s 0.1s ease both;
+  }
+
+  h1 .accent { color: var(--teal); }
+
+  .hero-sub {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 520px;
+    margin-bottom: 44px;
+    font-weight: 300;
+    animation: fadeUp 0.8s 0.2s ease both;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 16px;
+    animation: fadeUp 0.8s 0.3s ease both;
+  }
+
+  .btn-primary {
+    background: var(--teal);
+    color: var(--dark);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+    padding: 14px 32px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-primary:hover { background: #22f5c2; transform: translateY(-2px); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 14px 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color 0.2s, color 0.2s, transform 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--teal); color: var(--teal); transform: translateY(-2px); }
+
+  /* ─── STATS STRIP ─── */
+  #stats {
+    background: var(--dark3);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 60px;
+    display: flex;
+    justify-content: space-around;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    text-align: center;
+  }
+  .stat-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--teal);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ─── SECTIONS ─── */
+  section { padding: 100px 60px; position: relative; z-index: 1; }
+
+  .section-tag {
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal);
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+
+  .section-sub {
+    color: var(--muted);
+    font-size: 1rem;
+    max-width: 520px;
+    margin-bottom: 60px;
+    font-weight: 300;
+  }
+
+  /* ─── PROBLEM SECTION ─── */
+  #problem {
+    background: linear-gradient(180deg, var(--dark) 0%, var(--dark2) 100%);
+  }
+
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .problem-cell {
+    background: var(--card);
+    padding: 44px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .problem-cell:hover { background: rgba(26,223,176,0.06); }
+
+  .problem-cell::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--teal), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .problem-cell:hover::before { opacity: 1; }
+
+  .cell-icon {
+    width: 44px; height: 44px;
+    background: rgba(26,223,176,0.12);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .cell-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .cell-body {
+    color: var(--muted);
+    font-size: 0.92rem;
+    line-height: 1.7;
+  }
+
+  /* ─── HOW IT WORKS ─── */
+  #how {
+    background: var(--dark2);
+  }
+
+  .flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    position: relative;
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+
+  .flow-step {
+    flex: 1;
+    min-width: 200px;
+    text-align: center;
+    padding: 0 24px;
+    position: relative;
+  }
+
+  .flow-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 28px;
+    right: -1px;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, var(--teal-dim), transparent);
+    z-index: 0;
+  }
+
+  .step-num {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: rgba(26,223,176,0.12);
+    border: 1px solid var(--teal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    color: var(--teal);
+    font-size: 1.1rem;
+    margin: 0 auto 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .step-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .step-body {
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+
+  /* ─── MAPPING / AI VISUAL ─── */
+  #mapping {
+    background: var(--dark);
+  }
+
+  .map-layout {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .map-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px 28px;
+    text-align: center;
+  }
+
+  .map-box-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 16px;
+    font-weight: 600;
+  }
+
+  .map-box-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+
+  .map-box ul {
+    list-style: none;
+    text-align: left;
+  }
+  .map-box ul li {
+    color: var(--muted);
+    font-size: 0.88rem;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .map-box ul li::before { content: '→'; color: var(--teal); font-size: 0.8rem; }
+
+  .map-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--teal);
+  }
+
+  .map-arrow-line {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, var(--teal-dim), var(--teal));
+  }
+
+  .map-arrow-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal);
+    writing-mode: horizontal-tb;
+    white-space: nowrap;
+  }
+
+  .map-arrow svg { animation: arrowBounce 1.8s ease-in-out infinite; }
+  @keyframes arrowBounce {
+    0%, 100% { transform: translateX(0); }
+    50%       { transform: translateX(5px); }
+  }
+
+  /* ─── ETHICS / DILIGENCE ─── */
+  #diligence {
+    background: var(--dark2);
+  }
+
+  .diligence-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+
+  .d-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 32px;
+    transition: transform 0.25s, border-color 0.25s;
+  }
+  .d-card:hover { transform: translateY(-4px); border-color: var(--teal); }
+
+  .d-card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .d-icon {
+    font-size: 1.5rem;
+    width: 48px; height: 48px;
+    background: rgba(26,223,176,0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .d-card-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text);
+  }
+
+  .d-card-body {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.7;
+  }
+
+  .d-card.alert-card {
+    border-color: rgba(255,100,80,0.3);
+    background: rgba(255,80,60,0.04);
+  }
+  .d-card.alert-card .d-icon { background: rgba(255,80,60,0.12); }
+
+  /* ─── TEAM ─── */
+  #team {
+    background: var(--dark);
+    text-align: center;
+  }
+
+  .team-grid {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-top: 48px;
+  }
+
+  .team-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 32px;
+    min-width: 180px;
+    transition: transform 0.25s, border-color 0.25s;
+  }
+  .team-card:hover { transform: translateY(-4px); border-color: var(--teal); }
+
+  .team-avatar {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: rgba(26,223,176,0.15);
+    border: 2px solid var(--teal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--teal);
+    margin: 0 auto 16px;
+  }
+
+  .team-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text);
+  }
+
+  .team-role {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    background: var(--dark3);
+    border-top: 1px solid var(--border);
+    padding: 40px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--teal);
+  }
+
+  .footer-copy {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* ─── ANIMATION UTILITIES ─── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    nav { padding: 18px 24px; }
+    nav ul { display: none; }
+    #hero { padding: 100px 24px 60px; }
+    section { padding: 70px 24px; }
+    #stats { padding: 30px 24px; }
+    footer { padding: 30px 24px; }
+    .problem-grid { grid-template-columns: 1fr; }
+    .flow { flex-direction: column; align-items: center; }
+    .flow-step:not(:last-child)::after { display: none; }
+    .map-layout { grid-template-columns: 1fr; text-align: center; }
+    .map-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Smart<span>Dose</span></div>
+  <ul>
+    <li><a href="#problem">Problem</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#mapping">AI Logic</a></li>
+    <li><a href="#diligence">Ethics</a></li>
+    <li><a href="#team">Team</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="hero-bg">
+    <div class="ring"></div>
+    <div class="ring"></div>
+    <div class="ring"></div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-tag">Healthcare · AI Design Proposal</div>
+    <h1>Never miss a<br><span class="accent">dose</span> again.</h1>
+    <p class="hero-sub">Smart Dose is an AI-powered medication reminder that learns your daily rhythm and alerts you at the <em>perfect moment</em> — not just the scheduled one.</p>
+    <div class="hero-cta">
+      <a href="#how" class="btn-primary">See How It Works</a>
+      <a href="#mapping" class="btn-secondary">The AI Behind It</a>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div id="stats">
+  <div class="stat reveal">
+    <div class="stat-number">50%</div>
+    <div class="stat-label">of patients miss doses</div>
+  </div>
+  <div class="stat reveal">
+    <div class="stat-number">5k</div>
+    <div class="stat-label">training examples needed</div>
+  </div>
+  <div class="stat reveal">
+    <div class="stat-number">30min</div>
+    <div class="stat-label">max override window</div>
+  </div>
+  <div class="stat reveal">
+    <div class="stat-number">1</div>
+    <div class="stat-label">app, zero missed alarms</div>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="section-tag reveal">The Problem</div>
+  <h2 class="reveal">Alarm fatigue is real.</h2>
+  <p class="section-sub reveal">When the same alarm fires every day at the same time, people stop hearing it. Smart Dose solves this by making reminders adaptive — not repetitive.</p>
+
+  <div class="problem-grid reveal">
+    <div class="problem-cell">
+      <div class="cell-icon">😴</div>
+      <div class="cell-title">Alarm Fatigue</div>
+      <div class="cell-body">Patients tune out static reminders over time. A fixed 8 AM alarm means nothing if you're always driving at 8 AM and can't act on it.</div>
+    </div>
+    <div class="problem-cell">
+      <div class="cell-icon">💊</div>
+      <div class="cell-title">Missed Doses</div>
+      <div class="cell-body">Skipped medications can lead to serious health consequences — especially for heart conditions, diabetes, and chronic illness management.</div>
+    </div>
+    <div class="problem-cell">
+      <div class="cell-icon">📍</div>
+      <div class="cell-title">Context is Ignored</div>
+      <div class="cell-body">Traditional apps don't know where you are or what you're doing. Smart Dose uses GPS and activity data to find a better moment.</div>
+    </div>
+    <div class="problem-cell">
+      <div class="cell-icon">🔕</div>
+      <div class="cell-title">Alarm Dismissal</div>
+      <div class="cell-body">Poorly timed alerts get snoozed and eventually turned off entirely, defeating the purpose of the reminder system altogether.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="section-tag reveal">Workflow Design</div>
+  <h2 class="reveal">From data to the perfect moment.</h2>
+  <p class="section-sub reveal">Smart Dose follows a machine learning pipeline — collecting behavioral data, training on patterns, and deploying personalized alerts on your phone.</p>
+
+  <div class="flow">
+    <div class="flow-step reveal">
+      <div class="step-num">1</div>
+      <div class="step-title">Data Collection</div>
+      <div class="step-body">5,000 labeled examples: preferred reminder time, GPS/movement data, and whether the pill was actually taken or the alarm was dismissed.</div>
+    </div>
+    <div class="flow-step reveal">
+      <div class="step-num">2</div>
+      <div class="step-title">ML Training</div>
+      <div class="step-body">The model learns behavioral patterns — like consistently driving at 8 AM — and adjusts to wait for a moment when action is possible.</div>
+    </div>
+    <div class="flow-step reveal">
+      <div class="step-num">3</div>
+      <div class="step-title">Prediction</div>
+      <div class="step-body">For each reminder window, the AI predicts the "perfect moment" — the time when you're most likely to actually take your medication.</div>
+    </div>
+    <div class="flow-step reveal">
+      <div class="step-num">4</div>
+      <div class="step-title">Deployment</div>
+      <div class="step-body">A smartphone app delivers smart notifications — adapting continuously as your routine evolves over time.</div>
+    </div>
+  </div>
+</section>
+
+<!-- MAPPING / AI LOGIC -->
+<section id="mapping">
+  <div class="section-tag reveal">AI Input → Output</div>
+  <h2 class="reveal">The intelligence behind the alert.</h2>
+  <p class="section-sub reveal">Smart Dose maps context-rich inputs to a single optimized output — the best moment to remind you.</p>
+
+  <div class="map-layout reveal">
+    <div class="map-box">
+      <div class="map-box-label">Input (A)</div>
+      <div class="map-box-title">User Context</div>
+      <ul>
+        <li>Preferred reminder time (e.g. 8:00 AM)</li>
+        <li>Current activity (e.g. Driving)</li>
+        <li>GPS location data</li>
+        <li>Historical dismissal patterns</li>
+        <li>Phone movement / accelerometer</li>
+      </ul>
+    </div>
+
+    <div class="map-arrow">
+      <div class="map-arrow-line"></div>
+      <div class="map-arrow-label">ML Model</div>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 12H19M19 12L13 6M19 12L13 18" stroke="#1adfb0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="map-box">
+      <div class="map-box-label">Output (B)</div>
+      <div class="map-box-title">Perfect Moment</div>
+      <ul>
+        <li>Adjusted alert time (e.g. 8:12 AM)</li>
+        <li>When car stops at parking lot</li>
+        <li>High likelihood of compliance</li>
+        <li>Non-disruptive moment chosen</li>
+        <li>Override if critical threshold hit</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ETHICS / DUE DILIGENCE -->
+<section id="diligence">
+  <div class="section-tag reveal">Technical & Business Due Diligence</div>
+  <h2 class="reveal">Built with care and ethics.</h2>
+  <p class="section-sub reveal">Smart Dose is designed to be helpful, safe, and responsible — especially for life-critical medications.</p>
+
+  <div class="diligence-cards">
+    <div class="d-card reveal">
+      <div class="d-card-header">
+        <div class="d-icon">✅</div>
+        <div class="d-card-title">Technical Feasibility</div>
+      </div>
+      <div class="d-card-body">A nurse or family member could already do this manually. Smart Dose automates and scales that human behavior — making it feasible and proven in concept.</div>
+    </div>
+    <div class="d-card reveal">
+      <div class="d-card-header">
+        <div class="d-icon">📉</div>
+        <div class="d-card-title">Why 100% Isn't Possible</div>
+      </div>
+      <div class="d-card-body">If a user's phone dies or is left behind, the AI cannot reach them. Hardware dependency is a known limitation. A backup caregiver notification system could help.</div>
+    </div>
+    <div class="d-card reveal">
+      <div class="d-card-header">
+        <div class="d-icon">💚</div>
+        <div class="d-card-title">Business & Social Value</div>
+      </div>
+      <div class="d-card-body">Poorly timed alarms cause people to disable them permanently. Smart Dose keeps users engaged and safe by respecting their routine — not fighting it.</div>
+    </div>
+    <div class="d-card alert-card reveal">
+      <div class="d-card-header">
+        <div class="d-icon">🚨</div>
+        <div class="d-card-title">Ethics: Emergency Override</div>
+      </div>
+      <div class="d-card-body">For life-critical medications like heart pills, if a dose hasn't been taken within 30 minutes of the scheduled time, the AI must override all preferences and trigger a loud emergency alarm.</div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAM -->
+<section id="team">
+  <div class="section-tag reveal">The Team</div>
+  <h2 class="reveal">Built by three designers.</h2>
+  <p class="section-sub reveal" style="margin: 0 auto;">Smart Dose was designed by students who believe AI can improve everyday health outcomes through thoughtful, human-centered design.</p>
+
+  <div class="team-grid">
+    <div class="team-card reveal">
+      <div class="team-avatar">HH</div>
+      <div class="team-name">Hailey Hablitz</div>
+      <div class="team-role">AI Design Lead</div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">PG</div>
+      <div class="team-name">Paulina Gruca</div>
+      <div class="team-role">Workflow Designer</div>
+    </div>
+    <div class="team-card reveal">
+      <div class="team-avatar">AW</div>
+      <div class="team-name">Angel Wei</div>
+      <div class="team-role">Ethics & Feasibility</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">SmartDose</div>
+  <div class="footer-copy">© 2025 Smart Dose · AI Design Proposal · Healthcare Track</div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        // stagger siblings
+        const siblings = [...e.target.parentElement.querySelectorAll('.reveal')];
+        const idx = siblings.indexOf(e.target);
+        setTimeout(() => e.target.classList.add('visible'), idx * 80);
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+
+  reveals.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
